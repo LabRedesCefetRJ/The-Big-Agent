@@ -1,0 +1,34 @@
+serialPort(ttyEmulatedPort0).      
+
+// Estado do drone
+flying(false).
+
+!start.
+
++!start: serialPort(Port) <- 
+    .print("Conectando à porta serial: ", Port);
+    .argo.port(Port);
+    .argo.limit(1000);
+    .wait(5000);   // Espera 5s para calibração
+    !takeoff;
+    .wait(40000);   // Espera 8s para decolar e estabilizar
+    !move_forward;
+    .wait(40000);   // Move-se para frente por 6s
+    !land.       
+
++!takeoff : not(flying) <-
+    .print("Enviando comando de decolagem");
+    .argo.act(takeoff);
+    .wait(100);
+    +flying.
+
++!move_forward : flying <-
+    .print("Enviando comando de movimento");
+    .argo.act(goAhead);
+    .wait(100).
+
++!land : flying <-
+    .print("Enviando comando de pouso");
+    .argo.act(land);
+    .wait(100);
+    -flying.

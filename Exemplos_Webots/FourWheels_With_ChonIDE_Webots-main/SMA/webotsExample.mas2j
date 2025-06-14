@@ -1,0 +1,7 @@
+MAS webotsExample {
+	infrastructure: Centralised
+	agents:
+		webotsAgent agentArchClass jason.Argo;
+	aslSourcePath:
+		"asl";
+}

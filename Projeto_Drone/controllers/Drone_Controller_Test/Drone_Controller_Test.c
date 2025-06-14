@@ -20,6 +20,7 @@ typedef enum {
     TAKING_OFF,
     HOVERING,
     MOVING_FORWARD,
+    MOVING_TO_TARGET,
     LANDING
 } DroneState;
 
@@ -43,7 +44,6 @@ int main() {
         wb_robot_get_device("rear right propeller"),
     };
     
-    // Inicialização segura dos motores (todos desligados)
     for (int i = 0; i < 4; i++) {
         if (motors[i] == 0) {
             printf("Motor %d não encontrado!\n", i);
@@ -88,19 +88,20 @@ int main() {
     double state_start_time = 0;
     double motor_speeds[4] = {0};
 
-    const double TARGET_ALTITUDE = 1.0;  // Altura alvo em metros
-    const double BASE_THRUST = 62.0;     // Força base para hover
-    const double KP_STABILIZE = 15.0;    // Ganho para estabilização
-    const double KD_STABILIZE = 3.0;     // Ganho derivativo
-    const double KP_ALTITUDE = 8.0;      // Ganho para controle de altura
+    const double TARGET_ALTITUDE = 1.0;
+    const double BASE_THRUST = 62.0;
+    const double KP_STABILIZE = 15.0;
+    const double KD_STABILIZE = 3.0;
+    const double KP_ALTITUDE = 8.0;
+    const double NAV_SPEED = 0.3;
 
     double last_roll = 0, last_pitch = 0;
+    double target_x = 0, target_z = 0;
     double initial_x = 0, initial_z = 0;
 
     printf("Calibrando sensores...\n");
     for(int i = 0; i < 100; i++) {
         wb_robot_step(timestep);
-        // Garante motores desligados durante calibração
         for (int j = 0; j < 4; j++) {
             wb_motor_set_velocity(motors[j], 0.0);
         }
@@ -123,30 +124,31 @@ int main() {
                     state_start_time = current_time;
                     printf("Iniciando decolagem\n");
                     
-                    // Captura posição inicial para hover
                     if (gps) {
                         const double *pos = wb_gps_get_values(gps);
                         initial_x = pos[0];
                         initial_z = pos[2];
                     }
-                } else if (strcmp(msg, "goahead") == 0 && state == HOVERING) {
-                    state = MOVING_FORWARD;
+                }
+                else if (strncmp(msg, "goto(", 5) == 0) {
+                    // Formato: goto(X,Z)
+                    sscanf(msg, "goto(%lf,%lf)", &target_x, &target_z);
+                    printf("Novo destino: X=%.2f, Z=%.2f\n", target_x, target_z);
+                    state = MOVING_TO_TARGET;
                     state_start_time = current_time;
-                    printf("Movendo para frente\n");
-                } else if (strcmp(msg, "land") == 0 && (state == HOVERING || state == MOVING_FORWARD)) {
+                }
+                else if (strcmp(msg, "land") == 0 && state != LANDED && state != LANDING) {
                     state = LANDING;
                     state_start_time = current_time;
                     printf("Iniciando pouso\n");
-                } else if (strcmp(msg, "getpercepts") == 0) {
-                    char response[100];
+                }
+                else if (strcmp(msg, "getpos") == 0) {
                     if (gps) {
                         const double *pos = wb_gps_get_values(gps);
-                        snprintf(response, sizeof(response), "pos:%.2f,%.2f,%.2f", pos[0], pos[1], pos[2]);
-                    } else {
-                        snprintf(response, sizeof(response), "state:%d", state);
+                        char response[100];
+                        snprintf(response, sizeof(response), "pos(%.2f,%.2f,%.2f)", pos[0], pos[1], pos[2]);
+                        javino_send_msg(response);
                     }
-                    javino_send_msg(response);
-                    printf("Enviando dados: %s\n", response);
                 }
 
                 free(msg);
@@ -156,7 +158,7 @@ int main() {
         // Leitura dos sensores
         double roll = 0, pitch = 0;
         double altitude = 0;
-        double pos_x = 0, pos_z = 0;
+        double pos_x = 0, pos_y = 0, pos_z = 0;
 
         if (imu) {
             const double *rpy = wb_inertial_unit_get_roll_pitch_yaw(imu);
@@ -168,79 +170,94 @@ int main() {
             const double *pos = wb_gps_get_values(gps);
             altitude = pos[1];
             pos_x = pos[0];
+            pos_y = pos[1];
             pos_z = pos[2];
+            
+            // Enviar posição periodicamente
+            static int step_counter = 0;
+            step_counter++;
+            if (step_counter >= 5) { // A cada ~160ms
+                char percept[128];
+                snprintf(percept, sizeof(percept), "gps(%.2f,%.2f,%.2f)", pos_x, pos_y, pos_z);
+                javino_send_msg(percept);
+                step_counter = 0;
+            }
         }
 
-        // Controle dos motores - só ativo se não estiver no estado LANDED
+        // Controle dos motores
         if (state != LANDED) {
-            // Cálculo de derivadas para controle D
             double roll_rate = (roll - last_roll) / (timestep / 1000.0);
             double pitch_rate = (pitch - last_pitch) / (timestep / 1000.0);
             last_roll = roll;
             last_pitch = pitch;
 
-            // Controle de altitude
             double altitude_error = 0;
             double thrust_correction = 0;
 
-            if (state == TAKING_OFF || state == HOVERING || state == MOVING_FORWARD) {
+            if (state != LANDING) {
                 altitude_error = TARGET_ALTITUDE - altitude;
                 thrust_correction = KP_ALTITUDE * altitude_error;
 
-                // Transição para hover quando atingir a altura alvo
                 if (state == TAKING_OFF && altitude >= TARGET_ALTITUDE * 0.9) {
                     state = HOVERING;
                     printf("Drone estabilizado em voo\n");
                 }
+            } else {
+                // Durante pouso, reduzir gradualmente a altitude alvo
+                double target_alt = TARGET_ALTITUDE * (1.0 - fmin(1.0, elapsed_time / 4.0));
+                altitude_error = target_alt - altitude;
+                thrust_correction = KP_ALTITUDE * altitude_error;
+                
+                if (altitude < 0.1) {
+                    state = LANDED;
+                    printf("Pouso completo\n");
+                }
             }
 
-            // Estabilização com controle PD
             double roll_correction = KP_STABILIZE * (-roll) + KD_STABILIZE * (-roll_rate);
             double pitch_correction = KP_STABILIZE * (-pitch) + KD_STABILIZE * (-pitch_rate);
 
+            // Navegação para alvo
+            if (state == MOVING_TO_TARGET) {
+                double dx = target_x - pos_x;
+                double dz = target_z - pos_z;
+                double distance = sqrt(dx*dx + dz*dz);
+                
+                if (distance < 0.2) {
+                    state = HOVERING;
+                    printf("Alvo alcançado!\n");
+                } else {
+                    double direction = atan2(dz, dx);
+                    double target_pitch = -NAV_SPEED * cos(direction);
+                    double target_roll = -NAV_SPEED * sin(direction);
+                    
+                    pitch_correction += KP_STABILIZE * (target_pitch - pitch);
+                    roll_correction += KP_STABILIZE * (target_roll - roll);
+                }
+            }
             // Manter posição durante hover
-            if (state == HOVERING && gps) {
+            else if (state == HOVERING) {
                 double pos_error_x = initial_x - pos_x;
                 double pos_error_z = initial_z - pos_z;
                 pitch_correction += pos_error_z * 0.1;
                 roll_correction += pos_error_x * 0.1;
             }
 
-            // Movimento para frente controlado
-            double target_pitch = 0;
-            if (state == MOVING_FORWARD) {
-                if (elapsed_time < 1.0) {
-                    target_pitch = -0.1 * elapsed_time;  // Aceleração suave
-                } else if (elapsed_time < 4.0) {
-                    target_pitch = -0.1;  // Velocidade constante
-                } else if (elapsed_time < 5.0) {
-                    target_pitch = -0.1 * (5.0 - elapsed_time);  // Desaceleração
-                } else {
-                    state = HOVERING;
-                    printf("Movimento concluído\n");
-                }
-                pitch_correction += KP_STABILIZE * (target_pitch - pitch);
-            }
-
-            // Cálculo das velocidades dos motores
             motor_speeds[0] = BASE_THRUST + thrust_correction - pitch_correction + roll_correction;
             motor_speeds[1] = BASE_THRUST + thrust_correction - pitch_correction - roll_correction;
             motor_speeds[2] = BASE_THRUST + thrust_correction + pitch_correction + roll_correction;
             motor_speeds[3] = BASE_THRUST + thrust_correction + pitch_correction - roll_correction;
 
-            // Limites de segurança
             for (int i = 0; i < 4; i++) {
                 if (motor_speeds[i] > 100.0) motor_speeds[i] = 100.0;
                 if (motor_speeds[i] < 5.0) motor_speeds[i] = 5.0;
             }
 
-            // Aplicar velocidades nos motores
             wb_motor_set_velocity(motors[0], motor_speeds[0]);
             wb_motor_set_velocity(motors[1], -motor_speeds[1]);
             wb_motor_set_velocity(motors[2], -motor_speeds[2]);
             wb_motor_set_velocity(motors[3], motor_speeds[3]);
         } else {
-            // Estado LANDED - garante motores desligados
             for (int i = 0; i < 4; i++) {
                 wb_motor_set_velocity(motors[i], 0.0);
             }
@@ -248,14 +265,9 @@ int main() {
 
         // Debug
         static double last_debug = 0;
-        if (current_time - last_debug > 5) {
-            printf("Estado: %d | Altura: %.2fm | Roll: %.2f° | Pitch: %.2f°\n",
-                   state, altitude, roll * 180 / M_PI, pitch * 180 / M_PI);
-            if (state != LANDED) {
-                printf("Motores: FL=%.1f, FR=%.1f, RL=%.1f, RR=%.1f\n",
-                       motor_speeds[0], motor_speeds[1],
-                       motor_speeds[2], motor_speeds[3]);
-            }
+        if (current_time - last_debug > 1.0) {
+            printf("Estado: %d | Altura: %.2fm | X: %.2f | Z: %.2f\n",
+                   state, altitude, pos_x, pos_z);
             last_debug = current_time;
         }
     }

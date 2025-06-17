@@ -1,0 +1,39 @@
+{
+  "folders": [
+    {
+      "path": "../../../"
+    }
+  ],
+
+  "extensions": {
+    "recommendations": [
+      // life candys:
+      "aaron-bond.better-comments",
+      "alefragnani.Bookmarks",
+      "christian-kohler.path-intellisense",
+      "dzhavat.bracket-pair-toggler",
+      "ms-vsliveshare.vsliveshare",
+      "PKief.material-icon-theme",
+      "usernamehw.errorlens",
+      "developer2006.svg-gallery",
+
+      // theme:
+      "tinaciousdesign.theme-tinaciousdesign",
+      
+      // Workspace Essentials:
+      "tabajara-krausburg.jacamo4code",
+      "tkampik.code-mas2j",
+      "Stex93.agentspeak"
+      
+    ]
+  },
+
+  "settings": {
+    "workbench.colorTheme": "Tinacious Design (High Contrast)",
+    "workbench.iconTheme": "material-icon-theme",
+    "editor.fontFamily": "Fira Code",
+    "editor.fontWeight": "450",
+    "editor.fontSize": 14.5,
+    "editor.tabSize": 2
+  }
+}

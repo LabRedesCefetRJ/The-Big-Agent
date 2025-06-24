@@ -1,0 +1,37 @@
+serialPort(ttyEmulatedPort0).
+
+// Goal inicial
++!start <- 
+    .print("Conectando à porta serial...");
+    .argo.port(ttyEmulatedPort0);
+    .argo.limit(1000);
+    .wait(5000);  // tempo para calibrar
+    !ir_para(-3.0, 0.3).  // alvo_1 em (−3, 0.3)
+
+// Fase de navegação
++!ir_para(Xt, Zt) <- 
+    .print("Objetivo: ir para (", Xt, ", ", Zt, ")");
+    +destino(Xt, Zt);
+    !takeoff.
+
++!takeoff : not flying <- 
+    .print("Decolando...");
+    .argo.act(takeoff);
+    .wait(1000);  // aumento do tempo de espera
+    +flying;
+    !navegar.
+
+// Controle de navegação principal
++!navegar : destino(Xt, Zt) & flying <- 
+    .argo.act(getPercepts);  // Obtém dados dos sensores
+    .wait(200);
+    ?gps(X, Y, Z);  // Consulta crença GPS
+
+// Pouso
++!land : flying <- 
+    .print("Iniciando pouso...");
+    .argo.act(land);
+    .wait(2000);  // tempo suficiente para pouso
+    -flying;
+    -destino(_, _);
+    .print("Pouso concluído!").

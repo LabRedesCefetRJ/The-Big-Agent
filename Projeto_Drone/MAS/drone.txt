@@ -1,8 +1,10 @@
 serialPort(ttyEmulatedPort0).
 
+maxAltitude(5.0).
+
 !start.
 
-//--------------- Goal inicial ---------------
+//--------------- Loops Core ---------------
 
 +!start <-
     .print("Conectando à porta serial...");
@@ -13,33 +15,49 @@ serialPort(ttyEmulatedPort0).
     !takeoff;
 .
 
+
++!getGps <-
+	.argo.act(getpos);
+.
+
+
 //--------------- Fase de navegação ---------------
 
 +!takeoff : not flying <- 
-    .print("Decolando...");
-    .argo.act(takeoff);
-    .wait(1000);
-    +flying.
+	.print("Decolando...");
+	.argo.act(takeoff);
+	.wait(500);
+	+flying;
+	.argo.act(setMaxAltitude(maxAltitude));
+	.wait(1000);
+	!subir_ate(maxAltitude)	
+.
 
 +!land : flying <- 
     .print("Pousando...");
     .argo.act(land);
     .wait(2000);
     -flying;
-    .print("Drone pousado.").
+    .print("Drone pousado.")
+.
+
+
 
 //--------------- Subir ---------------
 
 +!subir_ate(AlturaAlvo) <-
     .print("Subindo até altura ", AlturaAlvo);
     +meta_altura(AlturaAlvo);
-    !loop_subida.
+    !loop_subida
+.
 
 +!loop_subida : gps(_, _, Z) & meta_altura(A) & (Z < (A - 0.1)) <- 
-    .argo.act(getPercepts);
-    .argo.act(subindo);
-    .wait(200);
-    !loop_subida.
+    	!printMetaDebug(Z, A);
+	.argo.act(getpos);
+	.argo.act(subindo);
+ 	.wait(200);
+	!loop_subida
+.
 
 +!loop_subida : gps(_, _, Z) & meta_altura(A) & (Z >= (A - 0.1)) <- 
     .print("Altura desejada atingida.");
@@ -47,6 +65,9 @@ serialPort(ttyEmulatedPort0).
     !andar_para_x(-3.0).
 
 -!loop_subida : gps(_, _, Z) <- .print("Z atual: ", Z).
+
+
+
 
 //--------------- Andar no eixo X (frente/trás) ---------------
 
@@ -57,41 +78,68 @@ serialPort(ttyEmulatedPort0).
 
 +!loop_andar_x : gps(X, _, _) & meta_x(Xt) & (X < (Xt - 0.1)) <- 
     .print("Indo para frente...");
-    .argo.act(getPercepts);
+    .argo.act(getpos);
     .wait(200);
-    !loop_andar_x.
+    !loop_andar_x
+.
 
 +!loop_andar_x : gps(X, _, _) & meta_x(Xt) & (X > (Xt + 0.1)) <- 
     .print("Indo para trás...");
-    .argo.act(getPercepts);
+    .argo.act(getpos);
     .wait(200);
-    !loop_andar_x.
+    !loop_andar_x
+.
 
 +!loop_andar_x : gps(X, _, _) & meta_x(Xt) & (X >= (Xt - 0.1)) & (X <= (Xt + 0.1)) <- 
     .print("X desejado atingido.");
     -meta_x(_);
-    !descer_para(0.3).
+    !descer_para(0.3)
+.
+
 
 //--------------- Descer ---------------
 
 +!descer_para(AlturaAlvo) <-
     .print("Descendo até ", AlturaAlvo);
     +meta_altura(AlturaAlvo);
-    !loop_descida.
+    !loop_descida
+.
 
 +!loop_descida : gps(_, _, Z) & meta_altura(A) & (Z > (A + 0.1)) <- 
     .print("Descendoooo!");
-    .argo.act(getPercepts);
+    .argo.act(getpos);
     .wait(200);
-    !loop_descida.
+    !loop_descida
+.
 
 +!loop_descida : gps(_, _, Z) & meta_altura(A) & (Z <= (A + 0.1)) <- 
     .print("Descida concluída.");
     -meta_altura(_);
-    !land.
+    !land
+.
+
+
 
 //--------------- Debug ---------------
 
-+gps(X, Y, Z) <- .print("Percepção recebida: gps(", X, ", ", Y, ", ", Z, ")").
-+pos(X, Y, Z) <- .print("Percepção recebida: pos(", X, ", ", Y, ", ", Z, ")").
+
++gps(X, Y, Z) <- 
+	.print("Primeira percepção recebida: gps(", X, ", ", Y, ", ", Z, ")")
+.
+
+
++!posLoopdEBUG(X, Y, Z) <- 
+	.print("Percepção recebida (loop debug): pos(", X, ", ", Y, ", ", Z, ")");
+	.wait(1000);
+	!pos(X, Y, Z)
+.
+
+
++!printMetaDebug(Z, A) <-
+	Check = A - 0.1;
+	Valor = (Z < Check);
+   .print("Posição Z: ", Z, "Meta altura: ", A, " " ,  Valor);
+   .wait(1500)
+.
+
 

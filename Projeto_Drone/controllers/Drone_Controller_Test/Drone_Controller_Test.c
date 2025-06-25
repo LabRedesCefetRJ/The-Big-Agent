@@ -88,7 +88,7 @@ int main() {
     double state_start_time = 0;
     double motor_speeds[4] = {0};
 
-    const double TARGET_ALTITUDE = 0;
+    const double TARGET_ALTITUDE = 1000000.0; // mudado pelo agente
     const double BASE_THRUST = 80.0;
     const double KP_STABILIZE = 15.0;
     const double KD_STABILIZE = 3.0;
@@ -129,21 +129,37 @@ int main() {
                         initial_x = pos[0];
                         initial_y = pos[1];
                     }
-                } else if (strncmp(msg, "goto(", 5) == 0) {
+                } 
+                
+                else if (strncmp(msg, "goto(", 5) == 0) {
                     sscanf(msg, "goto(%lf,%lf)", &target_x, &target_y);
                     printf("Novo destino: X=%.2f, Y=%.2f\n", target_x, target_y);
                     state = MOVING_TO_TARGET;
                     state_start_time = current_time;
-                } else if (strcmp(msg, "land") == 0 && state != LANDED && state != LANDING) {
+                } 
+                
+                else if (strcmp(msg, "land") == 0 && state != LANDED && state != LANDING) {
                     state = LANDING;
                     state_start_time = current_time;
                     printf("Iniciando pouso\n");
-                } else if (strcmp(msg, "getpos") == 0) {
+                } 
+                
+                else if (strcmp(msg, "getpos") == 0) {
                     if (gps) {
                         const double *pos = wb_gps_get_values(gps);
                         char response[100];
                         snprintf(response, sizeof(response), "pos(%.2f,%.2f,%.2f)", pos[0], pos[1], pos[2]);
                         javino_send_msg(response);
+                    }
+                }
+
+                else if (strncmp(msg, "setMaxAltitude(", 15) == 0) {
+                    double nova_altura;
+                    if (sscanf(msg, "setMaxAltitude(%lf)", &nova_altura) == 1) {
+                        TARGET_ALTITUDE = nova_altura; // <- certifique-se que seja `double` e global/mutável
+                        printf("Nova altitude máxima definida para %.2f\n", TARGET_ALTITUDE);
+                    } else {
+                        printf("Formato inválido para setMaxAltitude\n");
                     }
                 }
 
@@ -170,12 +186,22 @@ int main() {
 
             static int step_counter = 0;
             step_counter++;
-            if (step_counter >= 5) {
+            
+            int init = 0;
+            int maxCounter = 3;
+
+            if (step_counter >= maxCounter) {
                 char percept[128];
+                
+                if(init == 0) { maxCounter = 30; }
+                
                 snprintf(percept, sizeof(percept), "gps(%.2f,%.2f,%.2f)", pos_x, pos_y, pos_z);
                 javino_send_msg(percept);
+                
+                init = 1;
                 step_counter = 0;
             }
+
         }
 
         if (state != LANDED) {
@@ -195,6 +221,7 @@ int main() {
                     state = HOVERING;
                     printf("Drone estabilizado em voo\n");
                 }
+
             } else {
                 double target_alt = TARGET_ALTITUDE * (1.0 - fmin(1.0, elapsed_time / 4.0));
                 altitude_error = target_alt - altitude;
@@ -253,11 +280,11 @@ int main() {
         }
 
         static double last_debug = 0;
-        if (current_time - last_debug > 0) {
+        if (current_time - last_debug > 5) {
             printf("Estado: %d | Altura: %.2fm | X: %.2f | Y: %.2f\n",
                    state, altitude, pos_x, pos_y);
             last_debug = current_time;
-        }
+        } 
     }
 
     close(serial);

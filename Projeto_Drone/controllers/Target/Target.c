@@ -1,279 +1,322 @@
-/*
- * Copyright 1996-2023 Cyberbotics Ltd.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     https://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
-#include <webots/distance_sensor.h>
-#include <webots/motor.h>
 #include <webots/robot.h>
+#include <webots/motor.h>
+#include <webots/inertial_unit.h>
 #include <webots/gps.h>
-
 #include <stdio.h>
-#include <string.h>
 #include <stdlib.h>
-
-#include <unistd.h>
+#include <string.h>
+#include <javino.h>
 #include <fcntl.h>
+#include <unistd.h>
+#include <ctype.h>
+#include <termios.h>
+#include <math.h>
 
-// #include <javino.h>
+#define TIME_STEP 32
+#define SERIAL_PORT "/dev/ttyExogenous0"
 
-// time in [ms] of a simulation step
-#define TIME_STEP 20
+typedef enum {
+    STATE_LANDED,
+    STATE_TAKING_OFF,
+    STATE_HOVERING,
+    STATE_MOVING_FORWARD,
+    STATE_MOVING_TO_TARGET,
+    STATE_LANDING
+} DroneState;
 
-#define TTY_EXOGENOUS_PORT "/dev/ttyExogenous0"
-
-#define LOG "/tmp/robot.log"
-
-
-// entree point of the controller
-int main(int argc, char **argv) {
-
-  // static int reasoning_cycle = 1;
-  // char percepts_msg[262];  
-
- 
-  // initialise the Webots API
-  wb_robot_init();
-
-
-#if 0
-  // internal variables
-  int i;
-
-  // initialise distance sensors
-  WbDeviceTag ds[2];
-  char ds_names[2][10] = {"ds_left", "ds_right"};
-  for (i = 0; i < 2; i++) {
-    ds[i] = wb_robot_get_device(ds_names[i]);
-    wb_distance_sensor_enable(ds[i], TIME_STEP);
-  }
-
-
-  // initialize GPS
-  WbDeviceTag gps;
-  gps = wb_robot_get_device("robot_gps");
-
-  wb_gps_enable(gps, 100);
-
-  // initialise motors
-  WbDeviceTag wheels[4];
-  
-  char wheels_names[4][8] = {"wheel1", "wheel2", "wheel3", "wheel4"};
-  for (i = 0; i < 4; i++) {
-    wheels[i] = wb_robot_get_device(wheels_names[i]);
-    wb_motor_set_position(wheels[i], INFINITY);
-  }
-  
-  
-  int exogenous_port =  open(
-    TTY_EXOGENOUS_PORT,
-    O_RDWR
-    );
-    
-  if ( exogenous_port < 0 ){
-    perror("ERROR");
-    fprintf(stderr, "Check if the serial port module is loaded!");
-    return -1;
-  }
-    
-  javino_init( exogenous_port );
-  
-  char *javino_received_msg;
-  
-  double left_speed = 0.0;
-  double right_speed = 0.0;
-  
-  wb_motor_set_velocity(wheels[0], left_speed);
-  wb_motor_set_velocity(wheels[1], right_speed);
-  wb_motor_set_velocity(wheels[2], left_speed);
-  wb_motor_set_velocity(wheels[3], right_speed); 
-
-#endif 
-
-  // feedback loop
-  while (wb_robot_step(TIME_STEP) != -1) {
-    // init speeds
-
-#if 0
-    int javino_has_message = javino_avaliable_msg();
-    
-    if (! javino_has_message ){
-    
-      continue;
-      
+void normalize_string(char *str) {
+    int len = strlen(str);
+    while (len > 0 && isspace((unsigned char)str[len - 1])) {
+        str[len - 1] = '\0';
+        len--;
     }
-    
-    javino_received_msg = javino_get_msg( );
-    
-    fprintf(stderr, "\njavino_received_msg: %s", 
-      javino_received_msg ); 
-    
-    if ( ! strcmp( javino_received_msg , "getPercepts" )  ){
-      
-      // Distance sensor value
-      float d1 = wb_distance_sensor_get_value( ds[0] );
-      
-      float d2 = wb_distance_sensor_get_value( ds[1] );
-        
-      // printf("\n %.1f %.1f", d1, d2 );
+    for (char *p = str; *p; p++) *p = tolower(*p);
+}
 
-      const double *gps_values = wb_gps_get_values(gps);
-            
-      // Composing percepts message to send to Javino
-      int nbytes_written = sprintf(percepts_msg,
-        "dLeft(%.1f);dRight(%.1f);x(%.1f),y(%.1f),z(%.1f)",
-        d1, d2,
-        gps_values[0], gps_values[1], gps_values[2] );
-        
-       if ( nbytes_written < 0 ){
-       
-         fprintf(stderr, "\nERROR: Couldn't compose perception strings!");
-         
-       } else {
-       
-         // fprintf(stderr, "\n%s\n", percepts_msg);
-         
-       }
-       
-      fprintf(stdout,
-        "\nReceived: getPercepts (%d) = %s\n",
-        reasoning_cycle++, 
-        percepts_msg);
+double calculate_rate(double current, double previous, int timestep_ms) {
+    return (current - previous) / (timestep_ms / 1000.0);
+}
 
-        //left_speed = 0.0;
-        //right_speed = 0.0;                         
-        
-        //wb_motor_set_velocity(wheels[0], left_speed);
-        //wb_motor_set_velocity(wheels[1], right_speed);
-        //wb_motor_set_velocity(wheels[2], left_speed);
-        //wb_motor_set_velocity(wheels[3], right_speed);             
-       
-       nbytes_written = javino_send_msg( percepts_msg);
-         
-       if ( (strlen(percepts_msg) + JAVINO_HEADER_LEN) != nbytes_written ){
-         
-         fprintf(stderr, 
-           "\nError! Message length plus header (%lu) different from sent by Javino!(%u)!",
-           (strlen(percepts_msg) + JAVINO_HEADER_LEN),
-           nbytes_written );
-              
-       }     
-       
-      free( javino_received_msg );        
-                                                      
-    } else if ( ! strcmp( javino_received_msg , "goAhead" ) ){
-    
-      fprintf(stdout, 
-        "\nReceived: goAhead (%d)\n",
-        reasoning_cycle++ );
-    
-      left_speed = 1.0;
-      right_speed = 1.0; 
-      
-      wb_motor_set_velocity(wheels[0], left_speed);
-      wb_motor_set_velocity(wheels[1], right_speed);
-      wb_motor_set_velocity(wheels[2], left_speed);
-      wb_motor_set_velocity(wheels[3], right_speed);  
-      
-      free( javino_received_msg );                
-          
-    } else if ( ! strcmp( javino_received_msg , "goRight" ) ){
-    
-      fprintf( stdout,
-        "\nReceived: goRight (%d)\n",
-        reasoning_cycle++ );
-    
-      left_speed = 1.0;
-      right_speed = 0.0;
-      
-      wb_motor_set_velocity(wheels[0], left_speed);
-      wb_motor_set_velocity(wheels[1], right_speed);
-      wb_motor_set_velocity(wheels[2], left_speed);
-      wb_motor_set_velocity(wheels[3], right_speed); 
-      
-      free( javino_received_msg );                
-    
-    } else if ( ! strcmp( javino_received_msg , "goBack" ) ){
-    
-      fprintf(stdout, 
-        "\nReceived: goBack (%d)\n",
-        reasoning_cycle++ );
-    
-      left_speed = -1.0;
-      right_speed = -1.0;  
-      
-      
-      wb_motor_set_velocity(wheels[0], left_speed);
-      wb_motor_set_velocity(wheels[1], right_speed);
-      wb_motor_set_velocity(wheels[2], left_speed);
-      wb_motor_set_velocity(wheels[3], right_speed);  
-      
-      free( javino_received_msg );                     
-    
-    } else if ( ! strcmp( javino_received_msg , "stop" ) ){
-    
-      fprintf(stdout, 
-        "\nReceived: stop (%d)\n",
-        reasoning_cycle++ );
-    
-      left_speed = 0;
-      right_speed = 0;  
-      
-      
-      wb_motor_set_velocity(wheels[0], left_speed);
-      wb_motor_set_velocity(wheels[1], right_speed);
-      wb_motor_set_velocity(wheels[2], left_speed);
-      wb_motor_set_velocity(wheels[3], right_speed);  
-      
-      free( javino_received_msg );                     
-    
-    } else {
-    
-      fprintf(stderr, 
-        "\nWARNING: unknown received act (%d): (%s) \n",
-        reasoning_cycle++,
-        javino_received_msg ); 
-    
+double limit(double value, double min, double max) {
+    if (value < min) return min;
+    if (value > max) return max;
+    return value;
+}
+
+void apply_motor_speeds(WbDeviceTag *motors, double *speeds) {
+    wb_motor_set_velocity(motors[0], speeds[0]);
+    wb_motor_set_velocity(motors[1], -speeds[1]);
+    wb_motor_set_velocity(motors[2], -speeds[2]);
+    wb_motor_set_velocity(motors[3], speeds[3]);
+}
+
+int main() {
+
+    // ------------------ Motores ------------------
+
+    wb_robot_init();
+    int basic_timestep = wb_robot_get_basic_time_step();
+
+    WbDeviceTag propellers[4] = {
+        wb_robot_get_device("front left propeller"),
+        wb_robot_get_device("front right propeller"),
+        wb_robot_get_device("rear left propeller"),
+        wb_robot_get_device("rear right propeller"),
+    };
+
+    for (int i = 0; i < 4; i++) {
+        if (propellers[i] == 0)
+            printf("Motor %d não encontrado!\n", i);
+        wb_motor_set_position(propellers[i], INFINITY);
+        wb_motor_set_velocity(propellers[i], 0.0);
     }
-    
- 
-#endif
-/*    
-    if (avoid_obstacle_counter > 0) {
-    
-      avoid_obstacle_counter--;
-      left_speed = 1.0;
-      right_speed = -1.0;
-      
-    } else {
-      // read sensors outputs
-      
-      double ds_values[2];
-      for (i = 0; i < 2; i++)
-        ds_values[i] = wb_distance_sensor_get_value(ds[i]);
 
-      // increase counter in case of obstacle
-      if (ds_values[0] < 950.0 || ds_values[1] < 950.0)
-        avoid_obstacle_counter = 100;
+    // ------------------ Sensores ------------------
+
+    WbDeviceTag imu_sensor = wb_robot_get_device("inertial unit");
+    WbDeviceTag gps_sensor = wb_robot_get_device("gps");
+
+    if (imu_sensor == 0) printf("Sensor inercial não encontrado!\n");
+    else wb_inertial_unit_enable(imu_sensor, basic_timestep);
+
+    if (gps_sensor == 0) printf("GPS não encontrado!\n");
+    else wb_gps_enable(gps_sensor, basic_timestep);
+
+    // ------------------ Comunicação Serial ------------------
+
+    int serial_fd = open(SERIAL_PORT, O_RDWR | O_NOCTTY);
+    if (serial_fd < 0) {
+        perror("Erro ao abrir porta serial");
+        return 1;
     }
-*/    
 
-    // write actuators inputs
+    struct termios tty;
 
-  }
+    tcgetattr(serial_fd, &tty);
+    tty.c_cflag &= ~PARENB;
+    tty.c_cflag &= ~CSTOPB;
+    tty.c_cflag |= CS8;
+    tty.c_cflag &= ~CRTSCTS;
+    tty.c_cflag |= CREAD | CLOCAL;
+    tty.c_lflag &= ~ICANON;
+    tty.c_cc[VTIME] = 1;
+    tty.c_cc[VMIN] = 0;
+    tcsetattr(serial_fd, TCSANOW, &tty);
 
-  // cleanup the Webots API
-  wb_robot_cleanup();
-  return 0;  // EXIT_SUCCESS
+    javino_init(serial_fd);
+    printf("Porta serial configurada\n");
+
+    // ------------------ Variáveis de Estado ------------------
+
+    DroneState state = STATE_LANDED;
+
+    double state_start_time = 0;
+    double motor_speeds[4] = {0};
+
+    const double TARGET_ALTITUDE = 0;
+    const double BASE_THRUST = 80.0;
+    const double KP_STABILIZE = 15.0;
+    const double KD_STABILIZE = 3.0;
+    const double KP_ALTITUDE = 8.0;
+    const double NAVIGATION_SPEED = 0.3;
+
+    double previous_roll = 0, previous_pitch = 0;
+    double target_x = 0, target_y = 0;
+    double initial_x = 0, initial_y = 0;
+
+    printf("Calibrando sensores...\n");
+
+    for (int i = 0; i < 100; i++) {
+        wb_robot_step(basic_timestep);
+        for (int j = 0; j < 4; j++) {
+            wb_motor_set_velocity(propellers[j], 0.0);
+        }
+    }
+
+    printf("Calibração completa\n");
+
+
+    
+    
+    // ------------------ Iteração do Drone ------------------
+
+    while (wb_robot_step(basic_timestep) != -1) {
+        double current_time = wb_robot_get_time();
+        double time_in_state = current_time - state_start_time;
+
+        // ------------------ Processamento de Mensagens ------------------
+
+        if (javino_avaliable_msg()) {
+            char *msg = javino_get_msg();
+
+            if (msg) {
+                printf("Mensagem recebida: %s\n", msg);
+                normalize_string(msg);
+
+                if (strcmp(msg, "takeoff") == 0 && state == STATE_LANDED) {
+                    state = STATE_TAKING_OFF;
+                    state_start_time = current_time;
+                    printf("Iniciando decolagem\n");
+
+                    if (gps_sensor) {
+                        const double *pos = wb_gps_get_values(gps_sensor);
+                        initial_x = pos[0];
+                        initial_y = pos[1];
+                    }
+                } else if (strncmp(msg, "goto(", 5) == 0) {
+                    sscanf(msg, "goto(%lf,%lf)", &target_x, &target_y);
+                    printf("Novo destino: X=%.2f, Y=%.2f\n", target_x, target_y);
+                    state = STATE_MOVING_TO_TARGET;
+                    state_start_time = current_time;
+                } else if (strcmp(msg, "land") == 0 && state != STATE_LANDED && state != STATE_LANDING) {
+                    state = STATE_LANDING;
+                    state_start_time = current_time;
+                    printf("Iniciando pouso\n");
+                } else if (strcmp(msg, "getpos") == 0) {
+                    if (gps_sensor) {
+                        const double *pos = wb_gps_get_values(gps_sensor);
+                        char response[100];
+                        snprintf(response, sizeof(response), "pos(%.2f,%.2f,%.2f)", pos[0], pos[1], pos[2]);
+                        javino_send_msg(response);
+                    }
+                }
+
+                free(msg);
+            }
+        }
+
+        // ------------------ Leitura dos Sensores ------------------
+
+        double roll = 0, pitch = 0;
+        double pos_x = 0, pos_y = 0, altitude = 0;
+
+        if (imu_sensor) {
+            const double *rpy = wb_inertial_unit_get_roll_pitch_yaw(imu_sensor);
+            roll = rpy[0];
+            pitch = rpy[1];
+        }
+
+        if (gps_sensor) {
+            const double *pos = wb_gps_get_values(gps_sensor);
+            pos_x = pos[0];
+            pos_y = pos[1];
+            altitude = pos[2];
+
+            static int step_counter = 0;
+            step_counter++;
+            if (step_counter >= 5) {
+                char percept[128];
+                snprintf(percept, sizeof(percept), "gps(%.2f,%.2f,%.2f)", pos_x, pos_y, altitude);
+                javino_send_msg(percept);
+                step_counter = 0;
+            }
+        }
+
+        // ------------------ Controle do Estado do Drone ------------------
+
+        if (state != STATE_LANDED) {
+
+            // Atualiza velocidades angulares
+            double roll_rate  = calculate_rate(roll, previous_roll, basic_timestep);
+            double pitch_rate = calculate_rate(pitch, previous_pitch, basic_timestep);
+            previous_roll = roll;
+            previous_pitch = pitch;
+
+            // Controle de altitude
+            double thrust_correction = 0.0;
+            double altitude_error = 0.0;
+
+            if (state == STATE_LANDING) {
+
+                double descent_altitude = TARGET_ALTITUDE * (1.0 - fmin(1.0, time_in_state / 4.0));
+                altitude_error = descent_altitude - altitude;
+                
+                if (altitude < 0.1) {
+                    state = STATE_LANDED;
+                    printf("Pouso completo\n");
+                }
+
+            } else {
+                altitude_error = TARGET_ALTITUDE - altitude;
+                if (state == STATE_TAKING_OFF && altitude >= TARGET_ALTITUDE * 0.9) {
+                    state = STATE_HOVERING;
+                    printf("Drone estabilizado em voo\n");
+                }
+            }
+
+            thrust_correction = KP_ALTITUDE * altitude_error;
+
+            // --- Correções de estabilização
+            double roll_correction  = KP_STABILIZE * (-roll)  + KD_STABILIZE * (-roll_rate);
+            double pitch_correction = KP_STABILIZE * (-pitch) + KD_STABILIZE * (-pitch_rate);
+
+            // --- Correções de navegação
+            if (state == STATE_MOVING_TO_TARGET) {
+
+                double dx = target_x - pos_x;
+                double dy = target_y - pos_y;
+                double distance = sqrt(dx * dx + dy * dy);
+
+                if (distance < 0.2) {
+                    
+                    state = STATE_HOVERING;
+                    printf("Alvo alcançado!\n");
+
+                } else {
+                    // Ainda voando até target
+                    double angle = atan2(dy, dx);
+                    double target_pitch = -NAVIGATION_SPEED * cos(angle);
+                    double target_roll  = -NAVIGATION_SPEED * sin(angle);
+
+                    pitch_correction += KP_STABILIZE * (target_pitch - pitch);
+                    roll_correction  += KP_STABILIZE * (target_roll - roll);
+                }
+
+            } else if (state == STATE_HOVERING) {
+                double error_x = initial_x - pos_x;
+                double error_y = initial_y - pos_y;
+                pitch_correction += error_x * 0.1;
+                roll_correction  += error_y * 0.1;
+            }
+
+
+
+            // --- Atualiza velocidades dos motores
+            double motor_speeds[4];
+            motor_speeds[0] = BASE_THRUST + thrust_correction - pitch_correction + roll_correction;
+            motor_speeds[1] = BASE_THRUST + thrust_correction - pitch_correction - roll_correction;
+            motor_speeds[2] = BASE_THRUST + thrust_correction + pitch_correction + roll_correction;
+            motor_speeds[3] = BASE_THRUST + thrust_correction + pitch_correction - roll_correction;
+
+            for (int i = 0; i < 4; i++) {
+                motor_speeds[i] = limit(motor_speeds[i], 5.0, 100.0);
+            }
+
+            apply_motor_speeds(propellers, motor_speeds);
+
+        }
+        else {
+            printf("Desligando motores do drone!");
+
+            for (int i = 0; i < 4; i++) {
+                wb_motor_set_velocity(propellers[i], 0.0);
+            }
+        }
+
+        // ------------------ Debug ------------------
+
+        static double last_log_time = 0;
+
+        if (current_time - last_log_time > 0) {
+            printf("Estado: %d | Altura: %.2fm | X: %.2f | Y: %.2f\n",
+                   state, altitude, pos_x, pos_y);
+            last_log_time = current_time;
+        }
+    }
+
+    // ------------------ Finalização ------------------
+
+    close(serial_fd);
+    wb_robot_cleanup();
+    return 0;
 }

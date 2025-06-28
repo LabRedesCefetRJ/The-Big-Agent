@@ -18,6 +18,7 @@
 typedef enum {
     LANDED,
     UP,
+    DOWN,
     HOVERING,
     MOVE_RIGHT,
     MOVE_LEFT,
@@ -91,43 +92,73 @@ int main() {
     double state_start_time = 0;
 
     double motor_speeds[4] = {0};
+
+
+    //? ---------------------- Configs  ----------------------
+
     const double BASE_THRUST = 67.0;
 
-    const double KP_STABILIZE = 15.0;
-    const double KD_STABILIZE = 15.0;
+    const double KP_STABILIZE = 50.0;
+    const double KD_STABILIZE = 22.0;
+
+    const double upThrust = 4.0;
+    const double hoverThrust = 2.15;
+    const double downThrust = -2.0;
     
-    // const double NAV_SPEED = 0.3;
+    const double rightRoll = -0.025;
+    const double leftRoll = 0.025;
+    
+    const double frontPitch = -0.025;
+    const double backPitch = 0.025;
+    
+    const double landingThrust = -0.2;
+
+    //? -------------------------------------------------------
 
     double last_roll = 0, last_pitch = 0;
     double initial_x = 0, initial_y = 0;
 
-    printf("Calibrando sensores...\n");
+    printf("Calibrating Sensors...\n");
     for (int i = 0; i < 100; i++) {
         wb_robot_step(timestep);
         for (int j = 0; j < 4; j++) {
             wb_motor_set_velocity(motors[j], 0.0);
         }
     }
-    printf("Calibração completa\n");
+    printf("Calibration completed\n");
     
     while (wb_robot_step(timestep) != -1) {
         double current_time = wb_robot_get_time();
         double elapsed_time = current_time - state_start_time;
 
+        double altitude = 0;
+        double pos_x = 0, pos_y = 0, pos_z = 0;
+        char percept[128];
+
         // Processamento de mensagens
         if (javino_avaliable_msg()) {
             char *msg = javino_get_msg();
             if (msg) {
-                printf("Mensagem recebida: %s\n", msg);
-                
-                printf("Comprimento: %lu\n", strlen(msg));
+                printf("Message Recieved: %s\n", msg);
 
                 clean_string(msg);
 
                 if (strcmp(msg, "up") == 0 && state != UP) {        
                     state = UP;
                     state_start_time = current_time;
-                    printf("Iniciando decolagem\n");
+                    printf("To infinity and beyond\n");
+
+                    if (gps) {
+                        const double *pos = wb_gps_get_values(gps);
+                        initial_x = pos[0];
+                        initial_y = pos[1];
+                    }
+                }  
+                
+                if (strcmp(msg, "down") == 0 && state != DOWN) {        
+                    state = DOWN;
+                    state_start_time = current_time;
+                    printf("Going down\n");
 
                     if (gps) {
                         const double *pos = wb_gps_get_values(gps);
@@ -139,13 +170,13 @@ int main() {
                 else if (strcmp(msg, "land") == 0 && state != LANDED) {
                     state = LANDING;
                     state_start_time = current_time;
-                    printf("Iniciando pouso\n");
+                    printf("Landing!!\n");
                 } 
 
-                else if (strcmp(msg, "goright") == 0 && state != MOVE_RIGHT) {
+                else if (strcmp(msg, "right") == 0 && state != MOVE_RIGHT) {
                     state = MOVE_RIGHT;
                     state_start_time = current_time;
-                    printf("Indo para a direita\n");
+                    printf("Going Right\n");
 
                     if (gps) {
                         const double *pos = wb_gps_get_values(gps);
@@ -154,10 +185,10 @@ int main() {
                     }
                 } 
 
-                else if (strcmp(msg, "goleft") == 0 && state != MOVE_LEFT) {
+                else if (strcmp(msg, "left") == 0 && state != MOVE_LEFT) {
                     state = MOVE_LEFT;
                     state_start_time = current_time;
-                    printf("Indo para a esquerda\n");
+                    printf("Going Left!\n");
 
                     if (gps) {
                         const double *pos = wb_gps_get_values(gps);
@@ -166,10 +197,10 @@ int main() {
                     }
                 }
 
-                else if (strcmp(msg, "goforward") == 0 && state != MOVE_FOWARD) {
+                else if (strcmp(msg, "forward") == 0 && state != MOVE_FOWARD) {
                     state = MOVE_FOWARD;
                     state_start_time = current_time;
-                    printf("Indo para frente\n");
+                    printf("Forwards!\n");
 
                     if (gps) {
                         const double *pos = wb_gps_get_values(gps);
@@ -177,10 +208,10 @@ int main() {
                         initial_y = pos[1];
                     }
                 }
-                    else if (strcmp(msg, "gobackward") == 0 && state != MOVE_BACKWARD) {
+                    else if (strcmp(msg, "backward") == 0 && state != MOVE_BACKWARD) {
                     state = MOVE_BACKWARD;
                     state_start_time = current_time;
-                    printf("Indo para frente\n");
+                    printf("Backwards!\n");
 
                     if (gps) {
                         const double *pos = wb_gps_get_values(gps);
@@ -189,21 +220,20 @@ int main() {
                     }
                 }
 
-                else if (strcmp(msg, "turnoff") == 0 && state != LANDED) {
+                else if (strcmp(msg, "off") == 0 && state != LANDED) {
                     state = LANDED;
                     state_start_time = current_time;
-                    printf("Desligando motores\n");
+                    printf("Turning off!!!\n");
                 } 
- 
 
                 else if (strcmp(msg, "hover") == 0 && state != HOVERING) {
                     state = HOVERING;
                     state_start_time = current_time;
-                    printf("Iniciando Hovering\n");
+                    printf("Hovering!\n");
                 } 
-
+                
                 else {
-                    printf("Comando não identificado\n");
+                    printf("Not a command or already in execution\n");
                 }
                 
                 free(msg);
@@ -211,8 +241,6 @@ int main() {
         }
 
         double roll = 0, pitch = 0;
-        double altitude = 0;
-        double pos_x = 0, pos_y = 0, pos_z = 0;
 
         if (imu) {
             const double *rpy = wb_inertial_unit_get_roll_pitch_yaw(imu);
@@ -231,15 +259,14 @@ int main() {
             step_counter++;
             
             int init = 0;
-            int maxCounter = 3;
+            int maxCounter = 250;
 
             if (step_counter >= maxCounter) {
-                char percept[128];
-                
-                if(init == 0) { maxCounter = 30; }
                 
                 snprintf(percept, sizeof(percept), "gps(%.2f,%.2f,%.2f)", pos_x, pos_y, pos_z);
                 javino_send_msg(percept);
+
+                printf("INITIAL GPS sended: gps(%.2f,%.2f,%.2f)\n", pos_x, pos_y, pos_z);
                 
                 init = 1;
                 step_counter = 0;
@@ -257,6 +284,26 @@ int main() {
         double pitch_correction = 0;
 
         switch (state) {
+
+            //? Default values:
+            /*
+              const double BASE_THRUST = 67.0;
+
+                const double KP_STABILIZE = 50.0;
+                const double KD_STABILIZE = 22.0;
+
+                const double upThrust = 4.0;
+                const double hoverThrust = 2.15;
+                const double downThrust = -4.0;
+                
+                const double rightRoll = -0.1;
+                const double leftRoll = 0.1;
+                
+                const double frontPitch = -0.1;
+                const double backPitch = 0.1;
+                
+                const double landingThrust = -0.2;
+            */
             
             case LANDED: {
                 for (int i = 0; i < 4; i++) {
@@ -270,21 +317,27 @@ int main() {
                 roll_correction = 0;
                 pitch_correction = 0;
 
-                thrust_correction = 4.0;
+                thrust_correction = upThrust;
+                 
+                break;
+            }
+            
+            case DOWN:{
+                roll = 0 ;
+                pitch = 0;
+                roll_correction = 0;
+                pitch_correction = 0;
+    
+                thrust_correction = downThrust;
                  
                 break;
             }
 
             case HOVERING: {
-                thrust_correction = 0;
                 roll_correction = 0;
-                pitch_correction = 0;
-                // muda o direito da frente para resolver o y
+                pitch_correction = 0;                
                 
-                
-                thrust_correction = 2.15;
-                // roll = 0.1;
-                // pitch = 0.1;
+                thrust_correction = hoverThrust;
     
                 break;
             }
@@ -292,44 +345,44 @@ int main() {
             case MOVE_RIGHT: {
                 roll = 0;
                 pitch = 0;
-                thrust_correction = 2.15;
                 pitch_correction = 0;
                 roll_correction = 0;
-
-                roll = -0.1;
+                
+                thrust_correction = hoverThrust;
+                roll = rightRoll;
 
                 break;
             }
             
             case MOVE_LEFT: {
                 roll = 0;
-                thrust_correction = 2.15;
                 roll_correction = 0;
                 pitch_correction = 0;     
                 
-                roll = 0.1;
+                thrust_correction = hoverThrust;
+                roll = leftRoll;
 
                 break;
             }
 
             case MOVE_FOWARD: {
                 roll = 0;
-                thrust_correction = 2.15;
                 roll_correction = 0;
                 pitch_correction = 0;       
-
-                pitch = -0.1;
+                
+                thrust_correction = hoverThrust;
+                pitch = frontPitch;
 
                 break;
             }
 
             case MOVE_BACKWARD: {
                 roll = 0;
-                thrust_correction = 2.15;
                 roll_correction = 0;
                 pitch_correction = 0;
-
-                pitch = 0.1;
+                
+                thrust_correction = hoverThrust;
+                pitch = backPitch;
 
                 break;
             }
@@ -340,7 +393,7 @@ int main() {
                 roll_correction = 0;
                 pitch_correction = 0;
 
-                thrust_correction = -0.5;
+                thrust_correction = landingThrust;
 
                 break;
             }
@@ -369,17 +422,20 @@ int main() {
         }
         static double last_debug = 0;
         static double last_hover = 0;
+
+        double quantumStableSeconds = 5;
         
-        // Controle de estado do hover
-        if (current_time - last_hover > 3 && state != LANDING && state != LANDED ) { //TODO: EQUALIZAR COM O AGENTE
+        //? -------------- Hover controll --------------
+        if (current_time - last_hover > quantumStableSeconds && state != LANDING && state != LANDED ) { //TODO: EQUALIZAR COM O AGENTE
             printf("Estabilizando \n");
 
             state = HOVERING;
 
             last_hover = current_time;
+            quantumStableSeconds = 1;
         } 
 
-
+        //? -------------- Debug controll --------------   
 
         if (current_time - last_debug > 5) {
             printf("Estado: %d | Altura: %.2fm | X: %.2f | Y: %.2f\n",

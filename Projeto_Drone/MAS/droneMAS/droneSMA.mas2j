@@ -1,0 +1,9 @@
+MAS droneSMA {
+	infrastructure: Centralised
+	agents:
+		eye agentArchClass jason.Argo;
+		teletela agentArchClass Communicator;
+		secretary agentArchClass Communicator;
+	aslSourcePath:
+		"asl";
+}

@@ -41,7 +41,7 @@ For exemple, if you wish to install it in the home folder of the current logged 
 
 2 - Download the project with git.
 
-    git clone https://github.com/bptfreitas/Exemplo_Nardin](https://github.com/daniel4244/The-Big-Agent.git
+    git clone https://github.com/daniel4244/The-Big-Agent.git
 
 3 - Enter the folder and run make
 

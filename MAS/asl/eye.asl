@@ -12,18 +12,9 @@ serialPort(ttyEmulatedPort0).
 	.argo.percepts(open);
 	.argo.limit(1000);
     .print("👁️: Body connected.");
-	//.send(teletela, tell, ready);
-	!path;
+	.send(teletela, tell, ready);
     .wait(2000);
 .
-
-+!path <-!takeoff; !up(20.0); !right(15.0); !forward(-45.0); !left(-1.0); !backward(0.0); !right(-1.0); !backward(1.0); !down(2.0); !land; !turnOff; !contactBack.
-
-// para cima e para baixo é tudo positivo pq tá em cima do plano
-// para frente é negativo
-// para trás é positivo
-// right positivo
-// left negativo
 
 -!path <- 
   .print("👁️: I do not know the path");

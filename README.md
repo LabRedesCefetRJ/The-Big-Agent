@@ -1,6 +1,6 @@
 # The-Big-Agent
 
-# Introduction:
+# Introducti:
 
 This project is composed of 3 main parts:
 
@@ -29,15 +29,9 @@ To run this example, you have to be running one of the following Linux distribut
 
         sudo apt install chonide chonos-serial-port-emulator
 
-# Compilation:
-
-To compile this example from the Command Line Interface (CLI):
+# Execution:
 
 1 - Open a CLI terminal and create/go to the folder you wish to download the project to.
-
-For exemple, if you wish to install it in the home folder of the current logged user:
-
-    cd ~/
 
 2 - Download the project with git.
 
@@ -45,29 +39,22 @@ For exemple, if you wish to install it in the home folder of the current logged 
 
 3 - Enter the folder and run make
 
-    sudo chmod 666 /dev/ttyExogenous0
-    sudo chmod +x ./controllers/grindor.c
+    cd The-Big-Agent
+    sudo chmod 666 /dev/ttyExogenous0/dev/
+    sudo chmod +x ./Projeto_Drone/controllers/Drone_Controller_Test/Drone_Controller_Test
+    
     make clean all
     make clean
+    webots worlds/mundo.wbt
 
-This will download and compile the library JavinoInC
+This will download and compile the library JavinoInC and run the world
 
-# Execution:
+4 - In other terminal, run the agents
 
-1 - To start the scenario from the CLI, you have to be in the project folder and run:
-
-    webots --mode=pause worlds/mundo.wbt
-
-This will start the simulator paused.
-
-2 - In the CLI terminal, run the followings codes:
-    
     cd MAS
     jasonEmbedded Grindor.mas2j
 
-The agents will act.
-
-3 - Done! 
+5 - Done!
 
 # Apresentation Video
 

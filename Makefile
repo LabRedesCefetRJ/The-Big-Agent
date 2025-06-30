@@ -12,7 +12,8 @@ libjavino.a:
 	make -C JavinoInC all
 
 all: libjavino.a
-	make WEBOTS_HOME="$(WEBOTS_HOME)" -C controllers all
+	make WEBOTS_HOME="$(WEBOTS_HOME)" -C controllers/grindor_controller all
+	make WEBOTS_HOME="$(WEBOTS_HOME)" -C controllers/my_controller all
 clean:
-	make WEBOTS_HOME="$(WEBOTS_HOME)" -C controllers clean
-
+	make WEBOTS_HOME="$(WEBOTS_HOME)" -C controllers/grindor_controller clean
+	make WEBOTS_HOME="$(WEBOTS_HOME)" -C controllers/my_controller clean

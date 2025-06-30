@@ -46,7 +46,7 @@ For exemple, if you wish to install it in the home folder of the current logged 
 3 - Enter the folder and run make
 
     sudo chmod 666 /dev/ttyExogenous0
-    sudo chmod +x ./controllers
+    sudo chmod +x ./controllers/grindor.c
     make clean all
     make clean
 

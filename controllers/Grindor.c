@@ -105,8 +105,8 @@ int main() {
     const double hoverThrust = 2.15;
     const double downThrust = -2.0;
     
-    const double rightRoll = -0.020;
-    const double leftRoll = 0.020;
+    const double rightRoll = -0.025;
+    const double leftRoll = 0.025;
     
     const double frontPitch = -0.025;
     const double backPitch = 0.025;

@@ -58,6 +58,7 @@ Execution:
 This will start the simulator paused.
 
 3 - In the CLI terminal, run the followings codes:
+    
     cd MAS
     jasonEmbedded Grindor.mas2j
 

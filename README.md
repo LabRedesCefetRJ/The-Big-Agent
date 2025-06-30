@@ -10,9 +10,9 @@ This project is composed of 3 main parts:
 Prerequisites:
 To run this example, you have to be running one of the following Linux distributions :
 
-Ubuntu ( 22.04 or 24.04 )
-Mint
-Debian 12
+* Ubuntu ( 22.04 or 24.04 )
+* Mint
+* Debian 12
 
 1 - Install the Webots simulator from (https://github.com/cyberbotics/webots)
 2 - Install the following packages using apt:
@@ -56,9 +56,11 @@ Execution:
 
 This will start the simulator paused.
 
-2 - Start the ChonIDE Embedded MAS IDE
+3 - In the CLI terminal, run the followings codes:
+    cd MAS
+    jasonEmbedded Grindor.mas2j
 
-3 - Navigate to the folder of the downloaded project and, in the MAS folder, select the corresponding MAS project for ChonIDE.
+The agents will act.
 
 4 - Done! 
 

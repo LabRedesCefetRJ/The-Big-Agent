@@ -15,6 +15,7 @@ To run this example, you have to be running one of the following Linux distribut
 * Debian 12
 
 1 - Install the Webots simulator from (https://github.com/cyberbotics/webots)
+
 2 - Install the following packages using apt:
 
     sudo apt install git make gcc

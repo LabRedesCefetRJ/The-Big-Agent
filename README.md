@@ -60,14 +60,14 @@ This will download and compile the library JavinoInC
 
 This will start the simulator paused.
 
-3 - In the CLI terminal, run the followings codes:
+2 - In the CLI terminal, run the followings codes:
     
     cd MAS
     jasonEmbedded Grindor.mas2j
 
 The agents will act.
 
-4 - Done! 
+3 - Done! 
 
 # Apresentation Video
 

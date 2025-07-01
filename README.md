@@ -1,6 +1,6 @@
 # The-Big-Agent
 
-# Introducti:
+# Introduction:
 
 This project is composed of 3 main parts:
 
@@ -58,5 +58,5 @@ This will download and compile the library JavinoInC and run the world
 
 # Apresentation Video
 
-https://youtu.be/7pA-af7mxog
+https://youtu.be/oFyfsq-eDTg
 

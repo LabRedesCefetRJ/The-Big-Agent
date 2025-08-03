@@ -25,11 +25,11 @@ echo "Continue ??? (Press Enter to continue...)"
 read
 
 echo "Starting Secretary MAS..."
-cd cd ../../../Secretary/MAS/
+cd ../../../Secretary/MAS/
 xterm -e "jasonEmbedded secretary.mas2j" &
 
 echo "Starting Drone MAS..."
 sleep 5
 cd ../../Drone/MAS/
-jasonEmbedded drone.mas2j
+xterm -e "jasonEmbedded drone.mas2j" &
 cd ../../

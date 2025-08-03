@@ -5,7 +5,7 @@ SERIALPORT="/dev/ttyEmulatedPort0"
 XTERM="/usr/bin/xterm"
 
 clear
-if [[ ! -f "$FRAMEWORK"  ]] || [[ ! -f "$SIMULIDE" ]] || [[ ! -e "$SERIALPORT" ]] || [[ ! -e "$XTERM" ]]
+if [[ ! -f "$FRAMEWORK"  ]] || [[ ! -f "$WEBOTS" ]] || [[ ! -e "$SERIALPORT" ]] || [[ ! -e "$XTERM" ]]
 then
     echo "Installing dependencies..."
     sudo clear
@@ -27,9 +27,8 @@ echo "Starting Simulated World..."
 sleep 5
 cd ../../Drone/simulator/worlds/
 webots mundo.wbt &
-echo "Starting Drone MAS..."
-
-sleep 5
+echo "Start Drone MAS ??? (Press Enter to continue...)"
+read 
 cd ../../MAS/
 xterm -e "jasonEmbedded drone.mas2j" &
 cd ../../

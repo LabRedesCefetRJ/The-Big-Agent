@@ -9,11 +9,16 @@ serialPort(ttyEmulatedPort0).
 +!start <-
     .print("--: Opening Eyes...");
 	.argo.port(ttyEmulatedPort0);
-	.argo.percepts(open);
 	.argo.limit(1000);
+    .argo.percepts(open);
+	
+.
+
+
++port(P,S)[source(percept)]: serialPort(Port) & P=Port & S=on & not running <-
+    +running;
     .print("👁️: Body connected.");
 	.send(teletela, tell, ready);
-    .wait(2000);
 .
 
 -!path <- 

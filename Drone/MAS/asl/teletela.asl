@@ -11,18 +11,21 @@ secretaryUUID("b2fc3586-245f-4c28-b1ed-56d8e7936a49").
 
 +ready <- !pathRequest.
 
-+!pathRequest: teletelaUUID(UUID) & secretaryUUID(Secretary) <-
-	.sendOut(Secretary, tell, pathRequested(UUID));
-	.print("📺: Asked route to Secretary.")
++!pathRequest: teletelaUUID(UUID) & secretaryUUID(Secretary) & not running<-
+	.sendOut(Secretary, achieve, getPath);
+	.print("📺: Asked route to Secretary.");
+	.random(R); .wait(10000*R); !pathRequest;
 .
+
++!pathRequest: running.
+
 -!pathRequest <- .print("📺: Secretary is not reachable").
 
-+path(Path) <-
++!path(Path) <-
+  +running;
   .send(eye, tellHow, Path);
-  .wait(1000);
+  .wait(3000);
   .send(eye, achieve, path);
-	.wait(1000);
-	-path(Path)
 .
 
 +pathConcluded : teletelaUUID(UUID) & secretaryUUID(Secretary)  <- 

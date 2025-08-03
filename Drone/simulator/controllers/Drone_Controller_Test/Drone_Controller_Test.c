@@ -263,7 +263,7 @@ int main() {
 
             if (step_counter >= maxCounter) {
                 
-                snprintf(percept, sizeof(percept), "gps(%.2f,%.2f,%.2f)", pos_x, pos_y, pos_z);
+                snprintf(percept, sizeof(percept), "gps(%.2f,%.2f,%.2f);", pos_x, pos_y, pos_z);
                 javino_send_msg(percept);
 
                 printf("INITIAL GPS sended: gps(%.2f,%.2f,%.2f)\n", pos_x, pos_y, pos_z);

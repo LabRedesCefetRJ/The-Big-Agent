@@ -18,17 +18,18 @@ else
     echo "The computer has JasonEmbedded and Webots"
 fi
 
-echo "Starting Secretary MAS..."
-sleep 5
-cd Secretary/MAS/
-xterm -e "jasonEmbedded secretary.mas2j" &
 echo "Starting Simulated World..."
-
-sleep 5
-cd ../../Drone/simulator/worlds/
+cd Drone/simulator/worlds/
 webots mundo.wbt &
-echo "Start Drone MAS ??? (Press Enter to continue...)"
-read 
-cd ../../MAS/
-xterm -e "jasonEmbedded drone.mas2j" &
+echo "Continue ??? (Press Enter to continue...)"
+read
+
+echo "Starting Secretary MAS..."
+cd cd ../../../Secretary/MAS/
+xterm -e "jasonEmbedded secretary.mas2j" &
+
+echo "Starting Drone MAS..."
+sleep 5
+cd ../../Drone/MAS/
+jasonEmbedded drone.mas2j
 cd ../../

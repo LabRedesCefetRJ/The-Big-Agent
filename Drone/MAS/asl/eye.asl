@@ -227,7 +227,7 @@ serialPort(ttyEmulatedPort0).
 
 
 //+gps(X, Y, Z) <- 
-	//.print("--DEBUG GPS: Percepção recebida: gps(", X, ", ", Y, ", ", Z, ")")
+//	.print("--DEBUG GPS: Percepção recebida: gps(", X, ", ", Y, ", ", Z, ")")
 //.
 
 +!printMetaDebug(A) : gps(X, Y, Z) <-
